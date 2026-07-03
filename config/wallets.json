@@ -21,10 +21,12 @@
       "label": "W8",
       "address": "G9BcAB3qLrpUxS4ry6DeWW9WcM2bCDRfFKAqADBaMaDn",
       "keyEnv": "SOLANA_PRIVATE_KEY_07",
-      "role": "secondary_sniper",
+      "role": "mirror_sniper",
       "tradeSizePct": 0.45,
       "minTradeSol": 0.02,
-      "minSignalScore": 0.70
+      "minSignalScore": 0.70,
+      "mirrorWalletIndex": 9,
+      "notes": "Copies W9's entries (the historically stronger performer: +6.26 SOL / 51% WR vs W8's own -9.65 SOL / 42% WR). Falls back to its own independent 0.70-gate scan only when W9 has nothing open to mirror. Each entry is tagged mirror_w9 or independent so the Pattern Optimizer can compare the two approaches over time."
     }
   ]
 }

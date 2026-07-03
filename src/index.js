@@ -9,7 +9,7 @@ import filters from "../config/filters.json" with { type: "json" };
 import tradingParams from "../config/trading_params.json" with { type: "json" };
 
 import { checkPosition, sleep } from "./exitMonitor.js";
-import { fetchCandidates, quantumScore, checkMintSafety, checkHolderConcentration } from "./sniperEngine.js";
+import { fetchCandidates, quantumScore, checkMintSafety, checkHolderConcentration, getTokenPrice } from "./sniperEngine.js";
 import { executeSwap } from "./utils/transaction.js";
 import { getLiveBalanceSol, SOL_MINT } from "./utils/rpcClient.js";
 import { logEvent } from "./utils/logger.js";
@@ -44,6 +44,77 @@ async function runExitPhase(positions) {
   savePositions(positions);
 }
 
+/**
+ * Tries to have `wallet` (which has a mirrorWalletIndex configured) copy
+ * whatever the mirrored wallet is currently holding that this wallet
+ * doesn't already hold. Returns true if a mirror buy was placed.
+ */
+async function tryMirrorEntry(wallet, positions, usedAddrs) {
+  const sourcePositions = Object.entries(positions).filter(
+    ([, p]) => p.walletIndex === wallet.mirrorWalletIndex
+  );
+  if (!sourcePositions.length) return false;
+
+  const alreadyHeld = new Set(
+    Object.values(positions).filter((p) => p.walletIndex === wallet.index).map((p) => p.tokenAddress)
+  );
+
+  for (const [tokenAddress, sourcePos] of sourcePositions) {
+    if (alreadyHeld.has(tokenAddress) || usedAddrs.has(tokenAddress)) continue;
+
+    const pair = await getTokenPrice(tokenAddress);
+    if (!pair) continue;
+
+    const { getConnection } = await import("./utils/rpcClient.js");
+    const conn = getConnection();
+    const mintSafety = await checkMintSafety(conn, tokenAddress);
+    if (!mintSafety.safe) continue;
+    const holderCheck = await checkHolderConcentration(conn, tokenAddress, pair?.pairAddress);
+    if (!holderCheck.safe) continue;
+
+    const bal = await getLiveBalanceSol(wallet.address);
+    const sizeSol = Math.max(bal * wallet.tradeSizePct, wallet.minTradeSol);
+    if (sizeSol > bal - 0.005) { console.log(`${wallet.label}: insufficient balance to mirror (${bal} SOL)`); continue; }
+
+    if (DRY_RUN) {
+      console.log(`[dry-run] ${wallet.label} would mirror W${wallet.mirrorWalletIndex}'s ${sourcePos.tokenSymbol} (size ${sizeSol} SOL)`);
+      usedAddrs.add(tokenAddress);
+      return true;
+    }
+
+    const raw = process.env[wallet.keyEnv];
+    if (!raw) { console.error(`missing key ${wallet.keyEnv}`); continue; }
+    const keypair = Keypair.fromSecretKey(bs58.decode(raw));
+    const amountLamports = Math.floor(sizeSol * 1e9);
+
+    const { txHash, outAmount, err } = await executeSwap(keypair, SOL_MINT, tokenAddress, amountLamports);
+    const confirmed = !!txHash && err === null;
+    usedAddrs.add(tokenAddress);
+    if (confirmed) {
+      const price = parseFloat(pair.priceUsd || "0");
+      positions[tokenAddress] = {
+        walletIndex: wallet.index,
+        tokenAddress,
+        tokenSymbol: pair.baseToken?.symbol || sourcePos.tokenSymbol || "UNK",
+        tokenAmount: parseInt(outAmount),
+        amountSol: sizeSol,
+        entryPrice: price,
+        peakPrice: price,
+        entryTimestamp: new Date().toISOString(),
+        scalpDone: false, tier1Done: false, tier2Done: false,
+        strategyUsed: "mirror_w" + wallet.mirrorWalletIndex,
+      };
+      savePositions(positions);
+      logEvent({ type: "entry", wallet: wallet.label, token: pair.baseToken?.symbol, strategy: "mirror_w" + wallet.mirrorWalletIndex, mirroredFrom: sourcePos.tokenSymbol, sizeSol, txHash });
+      return true;
+    } else {
+      logEvent({ type: "error", wallet: wallet.label, action: "mirror_buy_not_confirmed", token: pair.baseToken?.symbol, txHash, err });
+      return false;
+    }
+  }
+  return false;
+}
+
 async function runEntryPhase(positions) {
   const busyWalletIndexes = new Set(Object.values(positions).map((p) => p.walletIndex));
   const candidates = await fetchCandidates();
@@ -59,6 +130,15 @@ async function runEntryPhase(positions) {
 
   for (const wallet of walletsConfig.trading_wallets) {
     if (busyWalletIndexes.has(wallet.index)) { console.log(`${wallet.label} busy — skipping entry scan`); continue; }
+
+    // Mirror-role wallets try to copy the source wallet's open position first
+    // (e.g. W8 copying W9, the historically stronger performer) before
+    // falling back to their own independent scored scan.
+    if (wallet.mirrorWalletIndex) {
+      const mirrored = await tryMirrorEntry(wallet, positions, usedAddrs);
+      if (mirrored) continue;
+      console.log(`${wallet.label}: nothing new to mirror from W${wallet.mirrorWalletIndex} — falling back to independent scan`);
+    }
 
     const gate = wallet.minSignalScore;
     const candidatesForWallet = scored.filter((c) => c.score >= gate && !usedAddrs.has(c.pair.baseToken?.address));
@@ -106,9 +186,10 @@ async function runEntryPhase(positions) {
         peakPrice: price,
         entryTimestamp: new Date().toISOString(),
         scalpDone: false, tier1Done: false, tier2Done: false,
+        strategyUsed: "independent",
       };
       savePositions(positions);
-      logEvent({ type: "entry", wallet: wallet.label, token: pair.baseToken?.symbol, score: pick.score, sizeSol, txHash });
+      logEvent({ type: "entry", wallet: wallet.label, token: pair.baseToken?.symbol, strategy: "independent", score: pick.score, sizeSol, txHash });
     } else {
       logEvent({ type: "error", wallet: wallet.label, action: "buy_not_confirmed", token: pair.baseToken?.symbol, txHash, err });
     }
@@ -121,17 +202,17 @@ async function main() {
   const pollMs = internalExitPollSeconds * 1000;
   const deadline = Date.now() + windowMs;
 
-  // High-frequency internal loop: keeps polling open positions every ~12s
-  // for the rest of this GitHub Actions job (which itself only fires every
-  // 5 minutes), giving near-real-time exit monitoring without needing a
-  // permanently-running server or extra Actions minutes.
+  // High-frequency internal loop: keeps polling open positions every ~1-12s
+  // for the rest of this GitHub Actions job, giving near-real-time exit
+  // monitoring without needing a permanently-running server.
   let firstPass = true;
   while (Date.now() < deadline) {
     const positions = loadPositions();
     await runExitPhase(positions);
 
     // Only scan for brand-new entries once per cycle (not every poll tick) —
-    // no need to hammer DexScreener every 12s for fresh candidates.
+    // no need to hammer DexScreener every tick for fresh candidates. Mirror
+    // checks happen inside runEntryPhase too, but only on this same cadence.
     if (firstPass) {
       await runEntryPhase(loadPositions());
       firstPass = false;
