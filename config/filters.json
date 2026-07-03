@@ -1,0 +1,25 @@
+{
+  "insiderMode": "v4.1",
+  "liquidityUsd": { "min": 15000, "max": 120000 },
+  "maxTokenAgeMinutes": 8,
+  "minVolume5mUsd": 1500,
+  "minMomentum5mPct": 2.0,
+  "maxHolderConcentrationPct": 35,
+  "reentryMomentumWaiverPct": 15,
+  "blocklist": [
+    "WIF", "FWOG", "SHIB", "PEPE", "ANSEM", "MEW", "OGDOGE",
+    "TOKEN_TREND_D", "TOKEN_TREND_F", "MOMENTUM_3B"
+  ],
+  "quantumScoreWeights": {
+    "momentum": 0.35,
+    "volumeToLiquidity": 0.25,
+    "volumePattern": 0.15,
+    "buySellPressure": 0.25
+  },
+  "rugChecks": {
+    "requireNoMintAuthority": true,
+    "requireNoFreezeAuthority": true,
+    "maxVolumeToLiquidityRatio": 100,
+    "supportsToken2022": true
+  }
+}

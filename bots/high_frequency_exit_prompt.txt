@@ -1,0 +1,33 @@
+HIGH-FREQUENCY EXIT MONITOR — Behavior Spec
+=============================================
+
+Why this exists
+----------------
+GitHub Actions' scheduled cron has a hard 5-minute minimum granularity. A
+naive "check exits every 5 minutes" cadence is too slow for fast-dumping
+meme tokens — a rug can go from +20% to -80% inside 60 seconds.
+
+How it works
+------------
+Each scheduled job (every 5 minutes) does NOT just check once and exit. It
+loops internally for ~4.5 minutes, polling every ~12 seconds
+(config/trading_params.json → cycle.internalExitPollSeconds), then lets the
+job end cleanly before the next scheduled invocation picks up. This gives
+effectively continuous exit monitoring using only GitHub's free-tier Actions
+minutes — no always-on server required.
+
+What gets checked on every poll tick
+-------------------------------------
+For every open position:
+1. Rug re-check (mint/freeze authority, holder concentration, wash trading)
+   — a token can turn malicious after entry, not just at entry.
+2. Scalp/Tier1/Tier2 take-profit ladder (see insider_mode_prompt.txt).
+3. Trailing stop drawdown from peak price.
+4. Hard -8% stop-loss.
+5. 15-minute max hold — including the stale-price on-chain-balance fallback
+   if the DexScreener feed goes dead for a token we still hold.
+
+New-entry scanning only happens ONCE per 5-minute job (not every 12s poll),
+since candidate discovery is comparatively slow-moving and hammering
+DexScreener's fresh-listing feed every 12 seconds would be both wasteful and
+likely to get rate-limited.

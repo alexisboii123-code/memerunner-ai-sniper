@@ -1,0 +1,55 @@
+INSIDER MODE v4.1 — Operating Ruleset
+======================================
+
+This is the strategy profile MemeRunner AI runs under. It was originally
+authored as standing instructions for a Base44 Superagent and is reproduced
+here so the standalone GitHub Actions bot stays behaviorally identical.
+
+ENTRY
+-----
+- Strict fresh-listing filter: only tokens under 8 minutes old (unless a
+  momentum re-entry waiver applies — see below).
+- Target liquidity sweet spot: $15,000–$120,000. Below this is too thin
+  (wash-tradeable), above this the token has already run and isn't a fresh
+  entry anymore.
+- Reject any token with >35% single-holder concentration (pre-entry dev/
+  insider bag check) unless that top holder is the liquidity pool itself.
+- Entry gate: quantum score >= 0.55 for W9 (main sniper, more capital,
+  higher risk tolerance), >= 0.70 for W8 (secondary, stricter).
+- Momentum re-entry carve-out: a token we've bought before can bypass the
+  8-minute freshness window if its 5-minute price change is still >= 15%.
+
+EXIT — scalp-first tiered take-profit (v7.5)
+---------------------------------------------
+1. SCALP_TP at +15% unrealized gain → sell 45% of the remaining position.
+   This is the most important behavioral change: bank real profit early
+   instead of waiting for +20% and risking a full round-trip back to
+   breakeven or a loss on a reversal.
+2. TIER1_TP at +20% → sell 40% of whatever remains after the scalp.
+3. TIER2_TP at +60% → sell 30% of whatever remains after tier 1.
+4. The remainder rides a trailing stop (arms at +10%, exits on an 8%
+   pullback from peak) or the hard stop-loss / max-hold safety net below.
+
+RISK MANAGEMENT
+----------------
+- Hard stop-loss: -8%, non-negotiable.
+- Max hold time: 15 minutes. If the price feed goes stale (dead API) past
+  this point, force-exit using the REAL on-chain token balance rather than
+  waiting indefinitely.
+- All exit/entry accounting requires genuine on-chain confirmation
+  (txHash + confirmed status) — an accepted-but-unconfirmed transaction is
+  never counted as a completed trade.
+
+PROFIT LOCKING
+--------------
+- Any realized profitable exit with pnl_sol >= 0.01 sweeps 50% of that gain
+  to the vault wallet (W1, non-trading, idle by design) via a real on-chain
+  SOL transfer. The other 50% + principal stays in the trading wallet to
+  keep compounding.
+
+CAPITAL STRUCTURE
+-----------------
+- 2 concentrated trading wallets: W9 (main sniper, most capital, looser
+  gate) and W8 (secondary, stricter gate). This replaced an earlier
+  fragmented 10-wallet approach that diluted capital too thin to matter
+  per trade.

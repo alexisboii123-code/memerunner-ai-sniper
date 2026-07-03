@@ -1,0 +1,47 @@
+name: MemeRunner AI Sniper Cycle
+
+on:
+  schedule:
+    # GitHub Actions' minimum cron granularity is 5 minutes. src/index.js
+    # internally loops every ~12s within each job for near-real-time exits.
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {} # allows manual "Run workflow" trigger from the Actions tab
+
+concurrency:
+  group: memerunner-sniper
+  cancel-in-progress: false # never cancel a mid-flight trade cycle
+
+jobs:
+  run-cycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    permissions:
+      contents: write # needed to commit logs/ back to the repo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run sniper cycle
+        env:
+          HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
+          SOLANA_PRIVATE_KEY_08: ${{ secrets.SOLANA_PRIVATE_KEY_08 }}
+          SOLANA_PRIVATE_KEY_07: ${{ secrets.SOLANA_PRIVATE_KEY_07 }}
+          DRY_RUN: "false"
+        run: node src/index.js
+
+      - name: Commit updated logs
+        run: |
+          git config user.name "memerunner-bot"
+          git config user.email "actions@github.com"
+          git add logs/ || true
+          git diff --cached --quiet || git commit -m "chore: update trade logs [skip ci]"
+          git push || true

@@ -1,0 +1,30 @@
+{
+  "vault": {
+    "label": "W1",
+    "address": "GjdztCZzLSsPg5FqAjQj9GrUTUVrErkmnYWRPcdjwBDV",
+    "role": "profit_vault",
+    "notes": "Idle, non-trading. Receives 50% of every realized profitable exit."
+  },
+  "trading_wallets": [
+    {
+      "index": 9,
+      "label": "W9",
+      "address": "HwoepVa3RgyeQKpAh8Eh41AEHh73mt5griGyBFPPkz2U",
+      "keyEnv": "SOLANA_PRIVATE_KEY_08",
+      "role": "main_sniper",
+      "tradeSizePct": 0.55,
+      "minTradeSol": 0.04,
+      "minSignalScore": 0.55
+    },
+    {
+      "index": 8,
+      "label": "W8",
+      "address": "G9BcAB3qLrpUxS4ry6DeWW9WcM2bCDRfFKAqADBaMaDn",
+      "keyEnv": "SOLANA_PRIVATE_KEY_07",
+      "role": "secondary_sniper",
+      "tradeSizePct": 0.45,
+      "minTradeSol": 0.02,
+      "minSignalScore": 0.70
+    }
+  ]
+}

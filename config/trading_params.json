@@ -1,0 +1,33 @@
+{
+  "engineVersion": "7.5",
+  "takeProfitTiers": [
+    { "tag": "SCALP_TP", "triggerPct": 15, "sellFracOfRemaining": 0.45,
+      "note": "First money off the table — locks in gains before waiting for bigger tiers, prevents round-tripping winners back to breakeven." },
+    { "tag": "TIER1_TP", "triggerPct": 20, "sellFracOfRemaining": 0.40 },
+    { "tag": "TIER2_TP", "triggerPct": 60, "sellFracOfRemaining": 0.30,
+      "note": "Remaining ~11% of original position rides the trailing stop / hard SL / max-hold safety net." }
+  ],
+  "trailingStop": { "armAtPct": 10, "pullbackPct": 8 },
+  "hardStopLossPct": -8,
+  "maxHoldMinutes": 15,
+  "moonTpPct": 100,
+  "profitSweep": {
+    "enabled": true,
+    "sweepPctOfRealizedGain": 0.5,
+    "minSweepSol": 0.01,
+    "vaultAddress": "GjdztCZzLSsPg5FqAjQj9GrUTUVrErkmnYWRPcdjwBDV",
+    "requiresOnChainConfirmation": true
+  },
+  "execution": {
+    "slippageBps": 2500,
+    "priorityFeeLamports": 50000,
+    "confirmTimeoutMs": 40000,
+    "skipPreflight": true
+  },
+  "cycle": {
+    "githubActionsCronMinutes": 5,
+    "internalExitPollSeconds": 1,
+    "internalPollWindowMinutes": 4.5,
+    "note": "Exit-only price checks against already-held positions run every 1s inside the loop — cheap (1 price lookup per open position per tick, no fresh market scan). Fresh candidate scanning for NEW entries still only happens once per 5-min job to avoid hammering DexScreener's discovery endpoint."
+  }
+}
