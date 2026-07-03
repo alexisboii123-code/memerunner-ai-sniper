@@ -2,8 +2,11 @@ name: MemeRunner AI Sniper Cycle
 
 on:
   schedule:
-    # GitHub Actions' minimum cron granularity is 5 minutes. src/index.js
-    # internally loops every ~12s within each job for near-real-time exits.
+    # Backstop trigger only — the job itself now loops internally for ~340
+    # minutes (near GitHub's 360min hard max per job) polling every 1s, so in
+    # steady state this cron rarely even gets to start a new run: the
+    # concurrency group below queues at most one waiting run behind the
+    # active one and starts it the moment the long-running job ends or dies.
     - cron: "*/5 * * * *"
   workflow_dispatch: {} # allows manual "Run workflow" trigger from the Actions tab
 
@@ -14,7 +17,7 @@ concurrency:
 jobs:
   run-cycle:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 345
     permissions:
       contents: write # needed to commit logs/ back to the repo
     steps:
@@ -30,7 +33,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run sniper cycle
+      - name: Run sniper cycle (continuous ~340min loop, 1s exit polling)
         env:
           HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
           SOLANA_PRIVATE_KEY_08: ${{ secrets.SOLANA_PRIVATE_KEY_08 }}
@@ -44,4 +47,5 @@ jobs:
           git config user.email "actions@github.com"
           git add logs/ || true
           git diff --cached --quiet || git commit -m "chore: update trade logs [skip ci]"
+          git pull --rebase origin main || true
           git push || true

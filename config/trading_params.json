@@ -1,5 +1,5 @@
 {
-  "engineVersion": "7.5",
+  "engineVersion": "7.6",
   "takeProfitTiers": [
     { "tag": "SCALP_TP", "triggerPct": 15, "sellFracOfRemaining": 0.45,
       "note": "First money off the table — locks in gains before waiting for bigger tiers, prevents round-tripping winners back to breakeven." },
@@ -27,7 +27,7 @@
   "cycle": {
     "githubActionsCronMinutes": 5,
     "internalExitPollSeconds": 1,
-    "internalPollWindowMinutes": 4.5,
-    "note": "Exit-only price checks against already-held positions run every 1s inside the loop — cheap (1 price lookup per open position per tick, no fresh market scan). Fresh candidate scanning for NEW entries still only happens once per 5-min job to avoid hammering DexScreener's discovery endpoint."
+    "internalPollWindowMinutes": 340,
+    "note": "v7.6: job now loops for ~340 min (near GitHub's 360min hard max) instead of 4.5min, so exit monitoring runs continuously at 1s resolution nearly 24/7. The 5-min cron trigger is now just a backstop/restart-if-crashed mechanism (concurrency group queues at most one waiting run). Repo must be public for unlimited free Actions minutes at this runtime scale."
   }
 }
