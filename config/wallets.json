@@ -14,7 +14,9 @@
       "role": "main_sniper",
       "tradeSizePct": 0.55,
       "minTradeSol": 0.04,
-      "minSignalScore": 0.55
+      "maxTradeSol": 0.15,
+      "minSignalScore": 0.55,
+      "notes": "tradeSizePct capped by maxTradeSol — with 2.36 SOL now in this wallet, 55% would be ~1.3 SOL on a single meme coin. Capping absolute risk per trade at 0.15 SOL regardless of balance so no single rug can gut the wallet."
     },
     {
       "index": 8,
@@ -24,6 +26,7 @@
       "role": "mirror_sniper",
       "tradeSizePct": 0.45,
       "minTradeSol": 0.02,
+      "maxTradeSol": 0.08,
       "minSignalScore": 0.70,
       "mirrorWalletIndex": 9,
       "notes": "Copies W9's entries (the historically stronger performer: +6.26 SOL / 51% WR vs W8's own -9.65 SOL / 42% WR). Falls back to its own independent 0.70-gate scan only when W9 has nothing open to mirror. Each entry is tagged mirror_w9 or independent so the Pattern Optimizer can compare the two approaches over time."

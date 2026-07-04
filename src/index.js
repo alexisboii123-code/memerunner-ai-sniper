@@ -73,7 +73,7 @@ async function tryMirrorEntry(wallet, positions, usedAddrs) {
     if (!holderCheck.safe) continue;
 
     const bal = await getLiveBalanceSol(wallet.address);
-    const sizeSol = Math.max(bal * wallet.tradeSizePct, wallet.minTradeSol);
+    const sizeSol = Math.min(Math.max(bal * wallet.tradeSizePct, wallet.minTradeSol), wallet.maxTradeSol ?? Infinity);
     if (sizeSol > bal - 0.005) { console.log(`${wallet.label}: insufficient balance to mirror (${bal} SOL)`); continue; }
 
     if (DRY_RUN) {
@@ -159,7 +159,7 @@ async function runEntryPhase(positions) {
 
     const pair = pick.pair;
     const bal = await getLiveBalanceSol(wallet.address);
-    const sizeSol = Math.max(bal * wallet.tradeSizePct, wallet.minTradeSol);
+    const sizeSol = Math.min(Math.max(bal * wallet.tradeSizePct, wallet.minTradeSol), wallet.maxTradeSol ?? Infinity);
     if (sizeSol > bal - 0.005) { console.log(`${wallet.label}: insufficient balance (${bal} SOL)`); continue; }
 
     if (DRY_RUN) {
