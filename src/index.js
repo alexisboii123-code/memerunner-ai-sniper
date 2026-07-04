@@ -198,13 +198,29 @@ async function runFreshSnipePhase(positions, listener) {
     if (!candidates.length) continue;
 
     for (const cand of candidates) {
-      const pair = await getTokenPrice(cand.mint);
-      if (!pair) continue; // not indexed on DexScreener yet — try again next tick
-
       const ageSeconds = cand.ageMs / 1000;
-      const { score, gateForAge } = freshSnipeScore(pair, ageSeconds, freshCfg);
-      const effectiveGate = gateForAge ?? wallet.minSignalScore;
-      if (score < effectiveGate) continue;
+      const pair = await getTokenPrice(cand.mint);
+      let score, gateForAge, fastPath = false;
+
+      if (!pair) {
+        // DexScreener has no data yet (common in the first few seconds).
+        // v8.2 fast-path: use PumpPortal's own live trade feed instead of
+        // skipping — if it's already showing real-time mcap inside our
+        // 10k-20k entry band with real buy pressure, act on that directly
+        // rather than waiting for DexScreener to catch up (by which point
+        // the window is often already gone).
+        const live = listener.getLiveMarketCapUsd(cand.mint);
+        const mcMin = freshCfg.entryMarketCapMinUsd ?? 0;
+        const mcMax = freshCfg.entryMarketCapMaxUsd ?? Infinity;
+        if (!live || live.marketCapUsd < mcMin || live.marketCapUsd > mcMax) continue;
+        const totalTrades = live.buys + live.sells;
+        if (totalTrades < 3 || live.buys / totalTrades < 0.55) continue; // need real, buy-skewed activity
+        score = 1; gateForAge = 0; fastPath = true;
+      } else {
+        ({ score, gateForAge } = freshSnipeScore(pair, ageSeconds, freshCfg));
+        const effectiveGate = gateForAge ?? wallet.minSignalScore;
+        if (score < effectiveGate) continue;
+      }
 
       const mintSafety = await checkMintSafety(conn, cand.mint);
       if (!mintSafety.safe) continue;
@@ -214,7 +230,11 @@ async function runFreshSnipePhase(positions, listener) {
       const bal = await getLiveBalanceSol(wallet.address);
       const bigSizeCapSol = wallet.freshSnipeBigSizeCapSol ?? freshCfg.bigSizeCapSol;
       let sizeSol;
-      if (ageSeconds >= freshCfg.bigSizeWindowMinSeconds && ageSeconds <= freshCfg.bigSizeWindowMaxSeconds) {
+      if (fastPath) {
+        // No DexScreener momentum data to size confidently off of yet — use
+        // the conservative base size, not the big-size window.
+        sizeSol = Math.min(Math.max(bal * wallet.tradeSizePct, wallet.minTradeSol), wallet.maxTradeSol ?? Infinity);
+      } else if (ageSeconds >= freshCfg.bigSizeWindowMinSeconds && ageSeconds <= freshCfg.bigSizeWindowMaxSeconds) {
         sizeSol = Math.min(bal * freshCfg.bigSizePct, bigSizeCapSol);
       } else {
         sizeSol = Math.min(Math.max(bal * wallet.tradeSizePct, wallet.minTradeSol), wallet.maxTradeSol ?? Infinity);
@@ -222,7 +242,7 @@ async function runFreshSnipePhase(positions, listener) {
       if (sizeSol > bal - 0.005) { console.log(`${wallet.label}: insufficient balance for fresh snipe (${bal} SOL)`); continue; }
 
       if (DRY_RUN) {
-        console.log(`[dry-run] ${wallet.label} fresh-snipe ${pair.baseToken?.symbol} age=${ageSeconds.toFixed(0)}s score=${score.toFixed(2)} size=${sizeSol}`);
+        console.log(`[dry-run] ${wallet.label} fresh-snipe ${pair?.baseToken?.symbol || cand.symbol}${fastPath ? " (fastpath)" : ""} age=${ageSeconds.toFixed(0)}s score=${score.toFixed(2)} size=${sizeSol}`);
         break;
       }
 
@@ -237,15 +257,21 @@ async function runFreshSnipePhase(positions, listener) {
       const confirmed = !!txHash && err === null;
       if (confirmed) {
         listener.markUsed(cand.mint);
-        const price = parseFloat(pair.priceUsd || "0");
+        // fastPath has no DexScreener priceUsd yet — approximate from the live
+        // mcap using pump.fun's standard 1B token supply (refines itself once
+        // DexScreener indexes the pair and exit-monitor pulls real prices).
+        const price = pair
+          ? parseFloat(pair.priceUsd || "0")
+          : (listener.getLiveMarketCapUsd(cand.mint)?.marketCapUsd || 0) / 1_000_000_000;
+        const symbol = pair?.baseToken?.symbol || cand.symbol;
         positions[cand.mint] = {
           walletIndex: wallet.index, tokenAddress: cand.mint,
-          tokenSymbol: pair.baseToken?.symbol || cand.symbol, tokenAmount: parseInt(outAmount), amountSol: sizeSol,
+          tokenSymbol: symbol, tokenAmount: parseInt(outAmount), amountSol: sizeSol,
           entryPrice: price, peakPrice: price, entryTimestamp: new Date().toISOString(),
-          scalpDone: false, tier1Done: false, tier2Done: false, strategyUsed: "fresh_snipe",
+          scalpDone: false, tier1Done: false, tier2Done: false, strategyUsed: fastPath ? "fresh_snipe_pumpportal_fastpath" : "fresh_snipe",
         };
         savePositions(positions);
-        logEvent({ type: "entry", wallet: wallet.label, token: pair.baseToken?.symbol, strategy: "fresh_snipe", ageSeconds: Math.round(ageSeconds), score, sizeSol, txHash });
+        logEvent({ type: "entry", wallet: wallet.label, token: symbol, strategy: fastPath ? "fresh_snipe_fastpath" : "fresh_snipe", ageSeconds: Math.round(ageSeconds), score, sizeSol, txHash });
       } else {
         listener.markUsed(cand.mint);
         logEvent({ type: "error", wallet: wallet.label, action: "fresh_snipe_not_confirmed", token: cand.symbol, txHash, err });
