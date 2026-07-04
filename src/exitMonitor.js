@@ -7,6 +7,19 @@ import { getConnection, SOL_MINT } from "./utils/rpcClient.js";
 import { logEvent } from "./utils/logger.js";
 
 const { takeProfitTiers, trailingStop, hardStopLossPct, maxHoldMinutes, moonTpPct, profitSweep } = tradingParams;
+
+/** Higher peak gain -> tighter pullback tolerance, so big runs get locked in
+ * before giving back too much. Falls back to a flat pullbackPct if no tiers
+ * are configured (backward compatible). */
+function effectiveTrailingPullbackPct(peakPct) {
+  const tiers = trailingStop.tiers;
+  if (!Array.isArray(tiers) || !tiers.length) return trailingStop.pullbackPct ?? 8;
+  let pct = tiers[0].pullbackPct;
+  for (const t of tiers) {
+    if (peakPct >= t.minPeakPct) pct = t.pullbackPct;
+  }
+  return pct;
+}
 const MAX_HOLD_MS = maxHoldMinutes * 60_000;
 
 const SCALP = takeProfitTiers[0];
@@ -112,7 +125,11 @@ export async function checkPosition(position, wallet) {
   let exitReason = null;
   if (!rug.safe) exitReason = "RUG_ALERT_" + rug.flags.join(",");
   else if (pnlPct >= moonTpPct) exitReason = "MOON_TP";
-  else if (pnlPct >= trailingStop.armAtPct && trailDrawdown >= trailingStop.pullbackPct) exitReason = "TRAILING_STOP";
+  else if (pnlPct >= trailingStop.armAtPct) {
+    const peakGainPct = position.peakPrice > 0 && entryPrice > 0 ? ((position.peakPrice - entryPrice) / entryPrice) * 100 : pnlPct;
+    const pullbackTolerance = effectiveTrailingPullbackPct(peakGainPct);
+    if (trailDrawdown >= pullbackTolerance) exitReason = "TRAILING_STOP";
+  }
   else if (pnlPct <= hardStopLossPct) exitReason = "HARD_SL";
   else if (holdMs >= MAX_HOLD_MS) exitReason = "MAX_HOLD_TIME";
 

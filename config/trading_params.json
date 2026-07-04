@@ -1,13 +1,42 @@
 {
   "engineVersion": "7.6",
   "takeProfitTiers": [
-    { "tag": "SCALP_TP", "triggerPct": 15, "sellFracOfRemaining": 0.45,
-      "note": "First money off the table — locks in gains before waiting for bigger tiers, prevents round-tripping winners back to breakeven." },
-    { "tag": "TIER1_TP", "triggerPct": 20, "sellFracOfRemaining": 0.40 },
-    { "tag": "TIER2_TP", "triggerPct": 60, "sellFracOfRemaining": 0.30,
-      "note": "Remaining ~11% of original position rides the trailing stop / hard SL / max-hold safety net." }
+    {
+      "tag": "SCALP_TP",
+      "triggerPct": 15,
+      "sellFracOfRemaining": 0.45,
+      "note": "First money off the table \u2014 locks in gains before waiting for bigger tiers, prevents round-tripping winners back to breakeven."
+    },
+    {
+      "tag": "TIER1_TP",
+      "triggerPct": 20,
+      "sellFracOfRemaining": 0.4
+    },
+    {
+      "tag": "TIER2_TP",
+      "triggerPct": 60,
+      "sellFracOfRemaining": 0.3,
+      "note": "Remaining ~11% of original position rides the trailing stop / hard SL / max-hold safety net."
+    }
   ],
-  "trailingStop": { "armAtPct": 10, "pullbackPct": 8 },
+  "trailingStop": {
+    "armAtPct": 10,
+    "tiers": [
+      {
+        "minPeakPct": 10,
+        "pullbackPct": 8
+      },
+      {
+        "minPeakPct": 40,
+        "pullbackPct": 5
+      },
+      {
+        "minPeakPct": 100,
+        "pullbackPct": 3
+      }
+    ],
+    "note": "Tightens as the peak gain grows so we lock in more of a big run before giving it back. 10-40% peak: 8% pullback tolerance. 40-100%: 5%. 100%+: 3% (moonshots get sold fast on any real reversal)."
+  },
   "hardStopLossPct": -8,
   "maxHoldMinutes": 15,
   "moonTpPct": 100,
