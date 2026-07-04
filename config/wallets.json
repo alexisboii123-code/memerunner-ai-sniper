@@ -1,38 +1,38 @@
 {
-  "vault": {
-    "label": "W1",
-    "address": "GjdztCZzLSsPg5FqAjQj9GrUTUVrErkmnYWRPcdjwBDV",
-    "role": "profit_vault",
-    "notes": "Idle, non-trading. Receives 50% of every realized profitable exit."
-  },
-  "trading_wallets": [
-    {
-      "index": 9,
-      "label": "W9",
-      "address": "HwoepVa3RgyeQKpAh8Eh41AEHh73mt5griGyBFPPkz2U",
-      "keyEnv": "SOLANA_PRIVATE_KEY_08",
-      "role": "main_sniper",
-      "tradeSizePct": 0.55,
-      "minTradeSol": 0.04,
-      "maxTradeSol": 0.15,
-      "minSignalScore": 0.55,
-      "freshSnipe": true,
-      "notes": "Normal-scan trades capped at 0.15 SOL regardless of balance pct. freshSnipe:true enables Sniper Mode Priority — real-time pump.fun discovery, relaxed 0.45 gate + $10k liq in the first few minutes, up to 65% of balance (hard-capped at 0.6 SOL) once a token clears the 1-5min window and passes core safety checks."
+    "vault": {
+        "label": "W1",
+        "address": "GjdztCZzLSsPg5FqAjQj9GrUTUVrErkmnYWRPcdjwBDV",
+        "role": "profit_vault",
+        "notes": "Idle, non-trading. Receives 50% of every realized profitable exit."
     },
-    {
-      "index": 8,
-      "label": "W8",
-      "address": "G9BcAB3qLrpUxS4ry6DeWW9WcM2bCDRfFKAqADBaMaDn",
-      "keyEnv": "SOLANA_PRIVATE_KEY_07",
-      "role": "mirror_sniper",
-      "tradeSizePct": 0.45,
-      "minTradeSol": 0.02,
-      "maxTradeSol": 0.08,
-      "minSignalScore": 0.70,
-      "mirrorWalletIndex": 9,
-      "freshSnipe": true,
-      "freshSnipeBigSizeCapSol": 0.3,
-      "notes": "Runs its OWN Sniper Mode Priority scan too now (independent of W9 — each wallet can catch a different fresh pump.fun launch in the same tick). If fresh-snipe finds nothing, falls back to mirroring W9's current position (the historically stronger performer: +6.26 SOL / 51% WR vs W8's own -9.65 SOL / 42% WR), then its own independent 0.70-gate scan as last resort. Fresh-snipe big-size window capped lower than W9 (0.3 SOL vs 0.6) to match W8's smaller allocation."
-    }
-  ]
+    "trading_wallets": [
+        {
+            "index": 9,
+            "label": "W9",
+            "address": "HwoepVa3RgyeQKpAh8Eh41AEHh73mt5griGyBFPPkz2U",
+            "keyEnv": "SOLANA_PRIVATE_KEY_08",
+            "role": "main_sniper",
+            "tradeSizePct": 0.55,
+            "minTradeSol": 0.04,
+            "maxTradeSol": 0.2,
+            "minSignalScore": 0.55,
+            "freshSnipe": true,
+            "notes": "Normal-scan trades capped at 0.15 SOL regardless of balance pct. freshSnipe:true enables Sniper Mode Priority \u2014 real-time pump.fun discovery, relaxed 0.45 gate + $10k liq in the first few minutes, up to 65% of balance (hard-capped at 0.6 SOL) once a token clears the 1-5min window and passes core safety checks."
+        },
+        {
+            "index": 8,
+            "label": "W8",
+            "address": "G9BcAB3qLrpUxS4ry6DeWW9WcM2bCDRfFKAqADBaMaDn",
+            "keyEnv": "SOLANA_PRIVATE_KEY_07",
+            "role": "mirror_sniper",
+            "tradeSizePct": 0.45,
+            "minTradeSol": 0.02,
+            "maxTradeSol": 0.08,
+            "minSignalScore": 0.7,
+            "mirrorWalletIndex": 9,
+            "freshSnipe": true,
+            "freshSnipeBigSizeCapSol": 0.3,
+            "notes": "Runs its OWN Sniper Mode Priority scan too now (independent of W9 \u2014 each wallet can catch a different fresh pump.fun launch in the same tick). If fresh-snipe finds nothing, falls back to mirroring W9's current position (the historically stronger performer: +6.26 SOL / 51% WR vs W8's own -9.65 SOL / 42% WR), then its own independent 0.70-gate scan as last resort. Fresh-snipe big-size window capped lower than W9 (0.3 SOL vs 0.6) to match W8's smaller allocation."
+        }
+    ]
 }
