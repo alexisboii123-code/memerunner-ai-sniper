@@ -39,6 +39,7 @@ jobs:
           SOLANA_PRIVATE_KEY_08: ${{ secrets.SOLANA_PRIVATE_KEY_08 }}
           SOLANA_PRIVATE_KEY_07: ${{ secrets.SOLANA_PRIVATE_KEY_07 }}
           DRY_RUN: "false"
+          GH_SYNC_SECRET: ${{ secrets.GH_SYNC_SECRET }}
         run: node src/index.js
 
       - name: Commit updated logs
