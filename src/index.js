@@ -214,7 +214,7 @@ async function runFreshSnipePhase(positions, listener) {
         const mcMax = freshCfg.entryMarketCapMaxUsd ?? Infinity;
         if (!live || live.marketCapUsd < mcMin || live.marketCapUsd > mcMax) continue;
         const totalTrades = live.buys + live.sells;
-        if (totalTrades < 3 || live.buys / totalTrades < 0.55) continue; // need real, buy-skewed activity
+        if (totalTrades < 2 || live.buys / totalTrades < 0.5) continue; // need real, buy-skewed activity
         score = 1; gateForAge = 0; fastPath = true;
       } else {
         ({ score, gateForAge } = freshSnipeScore(pair, ageSeconds, freshCfg));
