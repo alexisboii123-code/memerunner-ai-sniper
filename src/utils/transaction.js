@@ -31,8 +31,15 @@ export async function confirmTx(conn, sig, maxMs = confirmTimeoutMs) {
  * (not just an accepted tx_hash — skipPreflight lets doomed txs through the
  * RPC, so err===null AND confirmed status are both required before a caller
  * should ever treat this as a completed trade).
+ *
+ * opts.priorityFeeLamports: override the default config priority fee for
+ * time-sensitive entries (e.g. fresh-snipe buys racing to land fast). Note:
+ * this is Jupiter's own prioritization-fee param routed through Helius RPC —
+ * it is NOT a hand-built Jito bundle. A true custom Jito bundle (tip tx +
+ * swap tx submitted together to the Jito Block Engine) would be a further
+ * upgrade if landing speed is still a bottleneck after this.
  */
-export async function executeSwap(keypair, inputMint, outputMint, amountLamports) {
+export async function executeSwap(keypair, inputMint, outputMint, amountLamports, opts = {}) {
   try {
     const conn = getConnection();
     const quote = await getQuote(inputMint, outputMint, amountLamports);
@@ -46,7 +53,7 @@ export async function executeSwap(keypair, inputMint, outputMint, amountLamports
         userPublicKey: keypair.publicKey.toString(),
         wrapAndUnwrapSol: true,
         dynamicComputeUnitLimit: true,
-        prioritizationFeeLamports: priorityFeeLamports,
+        prioritizationFeeLamports: opts.priorityFeeLamports ?? priorityFeeLamports,
       }),
     });
     if (!swapResp.ok) return { txHash: null, outAmount: "0", err: `swap_${swapResp.status}: ${await swapResp.text()}` };

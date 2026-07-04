@@ -19,7 +19,7 @@ export function rugScan(pair, opts = {}) {
   const vol1h = pair?.volume?.h1 || 0;
 
   if (filters.blocklist.includes(sym)) flags.push("BLOCKLISTED");
-  if (liq < filters.liquidityUsd.min) flags.push("LOW_LIQ");
+  if (liq < (opts.liqMinOverride ?? filters.liquidityUsd.min)) flags.push("LOW_LIQ");
   if (mc > 10000 && liq / mc < 0.012) flags.push("LOW_LIQ_RATIO");
   if (parseFloat(pair?.priceUsd || "0") === 0) flags.push("ZERO_PRICE");
   if (liq > 0 && vol1h / liq > filters.rugChecks.maxVolumeToLiquidityRatio) flags.push("WASH_TRADING");
@@ -100,6 +100,40 @@ export function quantumScore(pair, vetted = false) {
   const pressureScore = Math.max(0, Math.min((buyRatio - 0.5) * 2, 1));
 
   return Math.min(momScore * w.momentum + vtlScore * w.volumeToLiquidity + patScore * w.volumePattern + pressureScore * w.buySellPressure, 1);
+}
+
+/**
+ * Fresh-snipe scoring for pump.fun launches surfaced by the real-time
+ * PumpPortal listener. Uses the SAME core safety gates as quantumScore
+ * (blocklist, wash-trading, zero-price, liq-too-high — those never relax),
+ * but with a relaxed liquidity floor during the configured early window
+ * (since a 90s-old token won't have built up volume history yet) and a
+ * simpler momentum/pressure-based score since 1h stats don't exist yet.
+ * Returns { score, gateForAge, liqMinUsed, flags }. Caller compares score
+ * against gateForAge (falls back to the wallet's normal gate once past the
+ * relaxed window).
+ */
+export function freshSnipeScore(pair, ageSeconds, freshCfg) {
+  const liqMinOverride = ageSeconds <= freshCfg.lowLiqWindowSeconds ? freshCfg.lowLiqUsd : filters.liquidityUsd.min;
+  const gateForAge = ageSeconds <= freshCfg.lowGateWindowSeconds ? freshCfg.lowGate : null;
+
+  const rug = rugScan(pair, { skipAgeCheck: true, liqMinOverride });
+  if (!rug.safe) return { score: 0, gateForAge, liqMinUsed: liqMinOverride, flags: rug.flags };
+
+  const vol5m = pair?.volume?.m5 || 0;
+  const ch5m = parseFloat(pair?.priceChange?.m5 || "0");
+  const liq = pair?.liquidity?.usd || 0;
+  const buys5m = pair?.txns?.m5?.buys || 0;
+  const sells5m = pair?.txns?.m5?.sells || 0;
+  const totalTxns5m = buys5m + sells5m;
+  const buyRatio = totalTxns5m > 0 ? buys5m / totalTxns5m : 0.5;
+
+  const momScore = Math.min(Math.max(ch5m, 0) / 20, 1);
+  const vtlScore = liq > 0 ? Math.min(vol5m / liq, 1) : 0;
+  const pressureScore = Math.max(0, Math.min((buyRatio - 0.5) * 2, 1));
+  const score = Math.min(momScore * 0.4 + vtlScore * 0.3 + pressureScore * 0.3, 1);
+
+  return { score, gateForAge, liqMinUsed: liqMinOverride, flags: [] };
 }
 
 /** Pulls fresh-listing candidates from DexScreener's profile/boost feeds (not keyword search). */

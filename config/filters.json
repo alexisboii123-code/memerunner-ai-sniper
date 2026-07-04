@@ -21,5 +21,18 @@
     "requireNoFreezeAuthority": true,
     "maxVolumeToLiquidityRatio": 100,
     "supportsToken2022": true
+  },
+  "freshSnipe": {
+    "enabled": true,
+    "note": "Sniper Mode Priority: real-time pump.fun discovery via PumpPortal WS, relaxed gates during the first few minutes of a token's life, bigger size once it clears the 1-5min window. Core safety checks (mint/freeze authority, holder concentration, blocklist) always apply regardless of age — those never get relaxed.",
+    "lowGateWindowSeconds": 180,
+    "lowGate": 0.45,
+    "lowLiqWindowSeconds": 120,
+    "lowLiqUsd": 10000,
+    "bigSizeWindowMinSeconds": 60,
+    "bigSizeWindowMaxSeconds": 300,
+    "bigSizePct": 0.65,
+    "bigSizeCapSol": 0.6,
+    "priorityFeeLamports": 300000
   }
 }

@@ -1,7 +1,7 @@
 {
   "name": "memerunner-ai",
-  "version": "7.5.0",
-  "description": "Insider Mode v4.1 Solana sniper bot — GitHub Actions native, scalp-first tiered profit taking",
+  "version": "7.9.0",
+  "description": "Insider Mode v4.1 Solana sniper bot — GitHub Actions native, scalp-first tiered profit taking, real-time pump.fun fresh-snipe mode",
   "main": "src/index.js",
   "type": "module",
   "scripts": {
@@ -12,7 +12,8 @@
     "@solana/spl-token": "^0.4.9",
     "@solana/web3.js": "^1.95.3",
     "bs58": "^5.0.0",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "ws": "^8.18.0"
   },
   "engines": {
     "node": ">=20.0.0"
