@@ -194,7 +194,7 @@ async function runFreshSnipePhase(positions, listener) {
   for (const wallet of wallets) {
     if (Object.values(positions).some((p) => p.walletIndex === wallet.index)) continue; // this wallet busy
 
-    const candidates = listener.getCandidates(15_000, windowMs).sort((a, b) => a.ageMs - b.ageMs);
+    const candidates = listener.getCandidates(5_000, windowMs).sort((a, b) => a.ageMs - b.ageMs);
     if (!candidates.length) continue;
 
     for (const cand of candidates) {
