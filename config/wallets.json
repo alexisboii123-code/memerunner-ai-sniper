@@ -30,7 +30,9 @@
       "maxTradeSol": 0.08,
       "minSignalScore": 0.70,
       "mirrorWalletIndex": 9,
-      "notes": "Copies W9's entries (the historically stronger performer: +6.26 SOL / 51% WR vs W8's own -9.65 SOL / 42% WR), including fresh-snipe entries. Falls back to its own independent 0.70-gate scan only when W9 has nothing open to mirror."
+      "freshSnipe": true,
+      "freshSnipeBigSizeCapSol": 0.3,
+      "notes": "Runs its OWN Sniper Mode Priority scan too now (independent of W9 — each wallet can catch a different fresh pump.fun launch in the same tick). If fresh-snipe finds nothing, falls back to mirroring W9's current position (the historically stronger performer: +6.26 SOL / 51% WR vs W8's own -9.65 SOL / 42% WR), then its own independent 0.70-gate scan as last resort. Fresh-snipe big-size window capped lower than W9 (0.3 SOL vs 0.6) to match W8's smaller allocation."
     }
   ]
 }

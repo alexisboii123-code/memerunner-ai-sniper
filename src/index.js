@@ -185,69 +185,73 @@ async function runFreshSnipePhase(positions, listener) {
   const freshCfg = filters.freshSnipe;
   if (!freshCfg?.enabled || !listener) return;
 
-  const wallet = walletsConfig.trading_wallets.find((w) => w.freshSnipe);
-  if (!wallet) return;
-  if (Object.values(positions).some((p) => p.walletIndex === wallet.index)) return; // wallet busy
+  const wallets = walletsConfig.trading_wallets.filter((w) => w.freshSnipe);
+  if (!wallets.length) return;
 
   const windowMs = (freshCfg.lowGateWindowSeconds + 120) * 1000; // small buffer past the relaxed window
-  const candidates = listener.getCandidates(15_000, windowMs).sort((a, b) => a.ageMs - b.ageMs);
-  if (!candidates.length) return;
-
   const conn = getConnection();
 
-  for (const cand of candidates) {
-    const pair = await getTokenPrice(cand.mint);
-    if (!pair) continue; // not indexed on DexScreener yet — try again next tick
+  for (const wallet of wallets) {
+    if (Object.values(positions).some((p) => p.walletIndex === wallet.index)) continue; // this wallet busy
 
-    const ageSeconds = cand.ageMs / 1000;
-    const { score, gateForAge } = freshSnipeScore(pair, ageSeconds, freshCfg);
-    const effectiveGate = gateForAge ?? wallet.minSignalScore;
-    if (score < effectiveGate) continue;
+    const candidates = listener.getCandidates(15_000, windowMs).sort((a, b) => a.ageMs - b.ageMs);
+    if (!candidates.length) continue;
 
-    const mintSafety = await checkMintSafety(conn, cand.mint);
-    if (!mintSafety.safe) { listener.markUsed(cand.mint); continue; }
-    const holderCheck = await checkHolderConcentration(conn, cand.mint, pair?.pairAddress);
-    if (!holderCheck.safe) { listener.markUsed(cand.mint); continue; }
+    for (const cand of candidates) {
+      const pair = await getTokenPrice(cand.mint);
+      if (!pair) continue; // not indexed on DexScreener yet — try again next tick
 
-    listener.markUsed(cand.mint);
+      const ageSeconds = cand.ageMs / 1000;
+      const { score, gateForAge } = freshSnipeScore(pair, ageSeconds, freshCfg);
+      const effectiveGate = gateForAge ?? wallet.minSignalScore;
+      if (score < effectiveGate) continue;
 
-    const bal = await getLiveBalanceSol(wallet.address);
-    let sizeSol;
-    if (ageSeconds >= freshCfg.bigSizeWindowMinSeconds && ageSeconds <= freshCfg.bigSizeWindowMaxSeconds) {
-      sizeSol = Math.min(bal * freshCfg.bigSizePct, freshCfg.bigSizeCapSol);
-    } else {
-      sizeSol = Math.min(Math.max(bal * wallet.tradeSizePct, wallet.minTradeSol), wallet.maxTradeSol ?? Infinity);
+      const mintSafety = await checkMintSafety(conn, cand.mint);
+      if (!mintSafety.safe) continue;
+      const holderCheck = await checkHolderConcentration(conn, cand.mint, pair?.pairAddress);
+      if (!holderCheck.safe) continue;
+
+      const bal = await getLiveBalanceSol(wallet.address);
+      const bigSizeCapSol = wallet.freshSnipeBigSizeCapSol ?? freshCfg.bigSizeCapSol;
+      let sizeSol;
+      if (ageSeconds >= freshCfg.bigSizeWindowMinSeconds && ageSeconds <= freshCfg.bigSizeWindowMaxSeconds) {
+        sizeSol = Math.min(bal * freshCfg.bigSizePct, bigSizeCapSol);
+      } else {
+        sizeSol = Math.min(Math.max(bal * wallet.tradeSizePct, wallet.minTradeSol), wallet.maxTradeSol ?? Infinity);
+      }
+      if (sizeSol > bal - 0.005) { console.log(`${wallet.label}: insufficient balance for fresh snipe (${bal} SOL)`); continue; }
+
+      if (DRY_RUN) {
+        console.log(`[dry-run] ${wallet.label} fresh-snipe ${pair.baseToken?.symbol} age=${ageSeconds.toFixed(0)}s score=${score.toFixed(2)} size=${sizeSol}`);
+        break;
+      }
+
+      const raw = process.env[wallet.keyEnv];
+      if (!raw) { console.error(`missing key ${wallet.keyEnv}`); break; }
+      const keypair = Keypair.fromSecretKey(bs58.decode(raw));
+      const amountLamports = Math.floor(sizeSol * 1e9);
+
+      const { txHash, outAmount, err } = await executeSwap(keypair, SOL_MINT, cand.mint, amountLamports, {
+        priorityFeeLamports: freshCfg.priorityFeeLamports,
+      });
+      const confirmed = !!txHash && err === null;
+      if (confirmed) {
+        listener.markUsed(cand.mint);
+        const price = parseFloat(pair.priceUsd || "0");
+        positions[cand.mint] = {
+          walletIndex: wallet.index, tokenAddress: cand.mint,
+          tokenSymbol: pair.baseToken?.symbol || cand.symbol, tokenAmount: parseInt(outAmount), amountSol: sizeSol,
+          entryPrice: price, peakPrice: price, entryTimestamp: new Date().toISOString(),
+          scalpDone: false, tier1Done: false, tier2Done: false, strategyUsed: "fresh_snipe",
+        };
+        savePositions(positions);
+        logEvent({ type: "entry", wallet: wallet.label, token: pair.baseToken?.symbol, strategy: "fresh_snipe", ageSeconds: Math.round(ageSeconds), score, sizeSol, txHash });
+      } else {
+        listener.markUsed(cand.mint);
+        logEvent({ type: "error", wallet: wallet.label, action: "fresh_snipe_not_confirmed", token: cand.symbol, txHash, err });
+      }
+      break; // one fresh-snipe attempt per wallet per tick
     }
-    if (sizeSol > bal - 0.005) { console.log(`${wallet.label}: insufficient balance for fresh snipe (${bal} SOL)`); continue; }
-
-    if (DRY_RUN) {
-      console.log(`[dry-run] ${wallet.label} fresh-snipe ${pair.baseToken?.symbol} age=${ageSeconds.toFixed(0)}s score=${score.toFixed(2)} size=${sizeSol}`);
-      return;
-    }
-
-    const raw = process.env[wallet.keyEnv];
-    if (!raw) { console.error(`missing key ${wallet.keyEnv}`); return; }
-    const keypair = Keypair.fromSecretKey(bs58.decode(raw));
-    const amountLamports = Math.floor(sizeSol * 1e9);
-
-    const { txHash, outAmount, err } = await executeSwap(keypair, SOL_MINT, cand.mint, amountLamports, {
-      priorityFeeLamports: freshCfg.priorityFeeLamports,
-    });
-    const confirmed = !!txHash && err === null;
-    if (confirmed) {
-      const price = parseFloat(pair.priceUsd || "0");
-      positions[cand.mint] = {
-        walletIndex: wallet.index, tokenAddress: cand.mint,
-        tokenSymbol: pair.baseToken?.symbol || cand.symbol, tokenAmount: parseInt(outAmount), amountSol: sizeSol,
-        entryPrice: price, peakPrice: price, entryTimestamp: new Date().toISOString(),
-        scalpDone: false, tier1Done: false, tier2Done: false, strategyUsed: "fresh_snipe",
-      };
-      savePositions(positions);
-      logEvent({ type: "entry", wallet: wallet.label, token: pair.baseToken?.symbol, strategy: "fresh_snipe", ageSeconds: Math.round(ageSeconds), score, sizeSol, txHash });
-    } else {
-      logEvent({ type: "error", wallet: wallet.label, action: "fresh_snipe_not_confirmed", token: cand.symbol, txHash, err });
-    }
-    return; // one fresh-snipe attempt per tick
   }
 }
 
