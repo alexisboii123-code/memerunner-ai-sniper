@@ -44,6 +44,8 @@
         "bigSizeWindowMaxSeconds": 300,
         "bigSizePct": 0.65,
         "bigSizeCapSol": 0.6,
-        "priorityFeeLamports": 300000
+        "priorityFeeLamports": 300000,
+        "entryMarketCapMinUsd": 10000,
+        "entryMarketCapMaxUsd": 20000
     }
 }

@@ -117,8 +117,24 @@ export function freshSnipeScore(pair, ageSeconds, freshCfg) {
   const liqMinOverride = ageSeconds <= freshCfg.lowLiqWindowSeconds ? freshCfg.lowLiqUsd : filters.liquidityUsd.min;
   const gateForAge = ageSeconds <= freshCfg.lowGateWindowSeconds ? freshCfg.lowGate : null;
 
-  const rug = rugScan(pair, { skipAgeCheck: true, liqMinOverride });
-  if (!rug.safe) return { score: 0, gateForAge, liqMinUsed: liqMinOverride, flags: rug.flags };
+  // Hard market-cap band: only buy while the token is still genuinely early
+  // (post-pump movers with big 5m momentum but a high mcap get rejected here,
+  // even if their momentum/volume numbers would otherwise score well).
+  const mcMin = freshCfg.entryMarketCapMinUsd ?? 0;
+  const mcMax = freshCfg.entryMarketCapMaxUsd ?? Infinity;
+  const mc = pair?.marketCap || 0;
+  if (mc < mcMin || mc > mcMax) {
+    return { score: 0, gateForAge, liqMinUsed: liqMinOverride, flags: ["MC_OUT_OF_RANGE"] };
+  }
+  // Tokens in the early mcap band are usually still on the pump.fun bonding
+  // curve (pre-Raydium migration) and report $0 "liquidity" on DexScreener —
+  // that's normal, not a rug signal. Bypass the liquidity floor here and lean
+  // on mint-safety + holder-concentration checks (below) as the real gate.
+  const inEarlyBand = mc >= mcMin && mc <= mcMax;
+  const effectiveLiqMinOverride = inEarlyBand ? 0 : liqMinOverride;
+
+  const rug = rugScan(pair, { skipAgeCheck: true, liqMinOverride: effectiveLiqMinOverride });
+  if (!rug.safe) return { score: 0, gateForAge, liqMinUsed: effectiveLiqMinOverride, flags: rug.flags };
 
   const vol5m = pair?.volume?.m5 || 0;
   const ch5m = parseFloat(pair?.priceChange?.m5 || "0");
